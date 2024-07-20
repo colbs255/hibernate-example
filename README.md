@@ -1,2 +1,3 @@
-# hibernate-example
+# Hibernate Example
+
 Demonstrates how to use hibernate
