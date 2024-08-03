@@ -9,13 +9,13 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.Table;
-import org.hibernate.annotations.SQLDelete;
+import org.hibernate.annotations.SoftDelete;
 
 import java.util.List;
 
 @Entity
 @Table(name = "db_group")
-@SQLDelete(sql = "UPDATE db_group SET deleted = true where id=?")
+@SoftDelete
 public class Group {
 
     @Id
@@ -28,12 +28,8 @@ public class Group {
     List<User> owners;
 
     @ElementCollection(fetch = FetchType.LAZY)
-            @CollectionTable(
-                    joinColumns = @JoinColumn(name = "GroupId")
-            )
+    @CollectionTable(joinColumns = @JoinColumn(name = "GroupId"))
     List<GroupMember> members;
-
-    boolean deleted;
 
     public String getName() {
         return name;
@@ -59,14 +55,6 @@ public class Group {
         this.members = members;
     }
 
-    public boolean isDeleted() {
-        return deleted;
-    }
-
-    public void setDeleted(boolean deleted) {
-        this.deleted = deleted;
-    }
-
     @Override
     public String toString() {
         return "Group{" +
@@ -74,7 +62,6 @@ public class Group {
                 ", name='" + name + '\'' +
                 ", owners=" + owners +
                 ", members=" + members +
-                ", deleted=" + deleted +
                 '}';
     }
 }

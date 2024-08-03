@@ -64,13 +64,12 @@ public class HibernateOperationsTest {
         });
 
         sessionFactory.inTransaction(session -> {
-            session.createSelectionQuery("from User", User.class)
-                    .getResultStream()
-                    .forEach(System.out::println);
+            assertThat(session.createSelectionQuery("from User", User.class).getResultStream())
+                    .containsExactly(user);
 
-            session.createSelectionQuery("from Group", Group.class)
-                    .getResultStream()
-                    .forEach(System.out::println);
+            assertThat(session.createSelectionQuery("from Group", Group.class).getResultStream().map(Group::getName))
+                    .containsExactly(group.getName());
+
         });
     }
 
@@ -95,19 +94,21 @@ public class HibernateOperationsTest {
         });
 
         sessionFactory.inTransaction(session -> {
-            session.createSelectionQuery("from Group", Group.class)
-                    .getResultStream()
-                    .forEach(System.out::println);
-        });
-
-        sessionFactory.inTransaction(session -> {
             session.remove(group);
         });
 
+        // Does not appear in hibernate queries
         sessionFactory.inTransaction(session -> {
-            session.createSelectionQuery("from Group", Group.class)
-                    .getResultStream()
-                    .forEach(System.out::println);
+            assertThat(session.createSelectionQuery("from Group", Group.class).getResultStream())
+                    .isEmpty();
+        });
+
+        // But does appear in native queries
+        sessionFactory.inTransaction(session -> {
+            var result = session.createNativeQuery("select * from db_group", Group.class).stream().findFirst().orElseThrow();
+            assertThat(result.getName()).isEqualTo(group.getName());
+//            assertThat(result.getOwners()).isNotEmpty();
+//            assertThat(result.getMembers()).isNotEmpty();
         });
     }
 }
