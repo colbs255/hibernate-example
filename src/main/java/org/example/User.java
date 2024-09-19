@@ -6,6 +6,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import org.hibernate.envers.Audited;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 @Entity
@@ -23,6 +25,8 @@ public class User {
     private String last;
 
     private int age;
+
+    private List<String> friends;
 
     public long getId() {
         return id;
@@ -71,7 +75,21 @@ public class User {
                 ", username='" + username + '\'' +
                 ", first='" + first + '\'' +
                 ", last='" + last + '\'' +
+                ", age=" + age +
+                ", friends=" + friends +
                 '}';
+    }
+
+    public List<String> getFriends() {
+        return friends;
+    }
+
+    public void setFriends(List<String> friends) {
+        if (this.friends == null) {
+            this.friends = new ArrayList<>();
+        }
+        this.friends.clear();
+        this.friends.addAll(friends);
     }
 
     @Override
@@ -79,11 +97,11 @@ public class User {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         User user = (User) o;
-        return id == user.id && Objects.equals(username, user.username) && Objects.equals(first, user.first) && Objects.equals(last, user.last);
+        return id == user.id && age == user.age && Objects.equals(username, user.username) && Objects.equals(first, user.first) && Objects.equals(last, user.last) && Objects.equals(friends, user.friends);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, username, first, last);
+        return Objects.hash(id, username, first, last, age, friends);
     }
 }

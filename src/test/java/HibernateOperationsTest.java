@@ -1,7 +1,4 @@
-import org.example.AuditInterceptor;
-import org.example.Group;
-import org.example.GroupMember;
-import org.example.User;
+import org.example.*;
 import org.hibernate.Session;
 import org.hibernate.SessionFactory;
 import org.hibernate.boot.MetadataSources;
@@ -10,6 +7,8 @@ import org.hibernate.boot.registry.StandardServiceRegistryBuilder;
 import org.hibernate.envers.AuditReaderFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.*;
 
@@ -29,6 +28,7 @@ public class HibernateOperationsTest {
                         .addAnnotatedClass(User.class)
                         .addAnnotatedClass(Group.class)
                         .addAnnotatedClass(GroupMember.class)
+                        .addAnnotatedClass(AuditEvent.class)
                         .buildMetadata()
                         .buildSessionFactory();
         var user = new User();
@@ -105,15 +105,19 @@ public class HibernateOperationsTest {
 
     @Test
     void interceptor() {
-        try (var session = sessionFactory.withOptions().interceptor(new AuditInterceptor(sessionFactory)).openSession()) {
+        try (var session = sessionFactory.withOptions().interceptor(new AuditInterceptor(sessionFactory, "colby")).openSession()) {
             var txn = session.beginTransaction();
             var storedUser = getUser(session);
             storedUser.setLast("another");
-            session.persist(storedUser);
+            storedUser.setFriends(List.of("laura"));
             txn.commit();
         }
-        System.out.println("here");
 
+        sessionFactory.inSession(session -> {
+            var events = session.createSelectionQuery("from AuditEvent", AuditEvent.class).stream().toList();
+            assertThat(events).hasSize(1);
+        });
+        System.out.println("here");
     }
 
     @Test
