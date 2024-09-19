@@ -1,20 +1,23 @@
+import org.example.AuditInterceptor;
 import org.example.Group;
 import org.example.GroupMember;
 import org.example.User;
+import org.hibernate.Session;
 import org.hibernate.SessionFactory;
 import org.hibernate.boot.MetadataSources;
 import org.hibernate.boot.registry.StandardServiceRegistry;
 import org.hibernate.boot.registry.StandardServiceRegistryBuilder;
+import org.hibernate.envers.AuditReaderFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-
-import java.util.List;
 
 import static org.assertj.core.api.Assertions.*;
 
 public class HibernateOperationsTest {
 
     private SessionFactory sessionFactory;
+    private static final String username = "pparker";
+    private long id;
 
     @BeforeEach
     void setup() {
@@ -28,87 +31,101 @@ public class HibernateOperationsTest {
                         .addAnnotatedClass(GroupMember.class)
                         .buildMetadata()
                         .buildSessionFactory();
-    }
-
-    @Test
-    void persist_user() {
         var user = new User();
         user.setFirst("Peter");
         user.setLast("Parker");
-        user.setUsername("pparker");
-
+        user.setUsername(username);
+        user.setAge(2);
         sessionFactory.inTransaction(session -> {
             session.persist(user);
         });
-
-        sessionFactory.inTransaction(session -> {
-            var users = session.createSelectionQuery("from User", User.class).list();
-            assertThat(users).containsExactly(user);
-        });
+        id = user.getId();
     }
 
     @Test
-    void persist_group_with_user() {
-        var user = new User();
-        user.setFirst("Peter");
-        user.setLast("Parker");
-        user.setUsername("pparker");
-
-        var group = new Group();
-        group.setName("test_group");
-        group.setOwners(List.of(user));
-
+    void nested_session() {
         sessionFactory.inTransaction(session -> {
-            session.persist(user);
-            session.persist(group);
-        });
-
-        sessionFactory.inTransaction(session -> {
-            assertThat(session.createSelectionQuery("from User", User.class).getResultStream())
-                    .containsExactly(user);
-
-            assertThat(session.createSelectionQuery("from Group", Group.class).getResultStream().map(Group::getName))
-                    .containsExactly(group.getName());
-
+            var storedUser = getUser(session);
+            storedUser.setLast("another");
+            var another = getUser(session);
+            sessionFactory.inTransaction(s -> {
+                var again = getUser(s);
+                assertThat(storedUser.getLast()).isEqualTo("another");
+                assertThat(another.getLast()).isEqualTo("another");
+                assertThat(again.getLast()).isEqualTo("Parker");
+            });
         });
     }
 
     @Test
-    void delete_group() {
-        var user = new User();
-        user.setFirst("Peter");
-        user.setLast("Parker");
-        user.setUsername("pparker");
-
-        var group = new Group();
-        group.setName("test_group");
-        group.setOwners(List.of(user));
-        var member = new GroupMember();
-        member.setGroup(group);
-        member.setUser(user);
-        group.setMembers(List.of(member));
-
+    void audit() {
         sessionFactory.inTransaction(session -> {
-            session.persist(user);
-            session.persist(group);
+            var auditReader = AuditReaderFactory.get(session);
+            var storedUser = getUser(session);
+            var all = auditReader.getRevisions(User.class, id).stream().map(v -> auditReader.find(User.class, id, v)).toList();
+            storedUser.setLast("another");
+            session.persist(storedUser);
+            session.flush();
+            var all2 = auditReader.getRevisions(User.class, id).stream().map(v -> auditReader.find(User.class, id, v)).toList();
+            assertThat(all).isEqualTo(all2);
+            assertThat(storedUser.getLast()).isEqualTo("another");
+            assertThat(all.getLast().getLast()).isEqualTo("Parker");
+            assertThat(all2.getLast().getLast()).isEqualTo("Parker");
         });
 
         sessionFactory.inTransaction(session -> {
-            session.remove(group);
+            var auditReader = AuditReaderFactory.get(session);
+            var all = auditReader.getRevisions(User.class, id).stream().map(v -> auditReader.find(User.class, id, v)).toList();
+            assertThat(all).hasSize(2);
         });
+    }
 
-        // Does not appear in hibernate queries
+    @Test
+    void refresh() {
         sessionFactory.inTransaction(session -> {
-            assertThat(session.createSelectionQuery("from Group", Group.class).getResultStream())
-                    .isEmpty();
+            var storedUser = getUser(session);
+            storedUser.setLast("another");
+            assertThat(storedUser.getLast()).isEqualTo("another");
+            session.refresh(storedUser);
+            assertThat(storedUser.getLast()).isEqualTo("Parker");
         });
+    }
 
-        // But does appear in native queries
+    @Test
+    void evict() {
         sessionFactory.inTransaction(session -> {
-            var result = session.createNativeQuery("select * from db_group", Group.class).stream().findFirst().orElseThrow();
-            assertThat(result.getName()).isEqualTo(group.getName());
-//            assertThat(result.getOwners()).isNotEmpty();
-//            assertThat(result.getMembers()).isNotEmpty();
+            var storedUser = getUser(session);
+            storedUser.setLast("another");
+            session.evict(storedUser);
+            var another = getUser(session);
+            assertThat(storedUser.getLast()).isEqualTo("another");
+            assertThat(another.getLast()).isEqualTo("Parker");
         });
+    }
+
+    @Test
+    void interceptor() {
+        try (var session = sessionFactory.withOptions().interceptor(new AuditInterceptor(sessionFactory)).openSession()) {
+            var txn = session.beginTransaction();
+            var storedUser = getUser(session);
+            storedUser.setLast("another");
+            session.persist(storedUser);
+            txn.commit();
+        }
+        System.out.println("here");
+
+    }
+
+    @Test
+    void hibernate_audit_feature() {
+
+    }
+
+    User getUser(Session session) {
+        var users = session.createSelectionQuery("from User", User.class).stream().toList();
+        if (users.size() != 1) {
+            throw new RuntimeException();
+        }
+        return users.getFirst();
     }
 }

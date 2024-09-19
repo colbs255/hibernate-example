@@ -9,13 +9,12 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.Table;
-import org.hibernate.annotations.SoftDelete;
+import org.hibernate.envers.Audited;
 
 import java.util.List;
 
 @Entity
 @Table(name = "db_group")
-@SoftDelete
 public class Group {
 
     @Id

@@ -4,11 +4,13 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import org.hibernate.envers.Audited;
 
 import java.util.Objects;
 
 @Entity
 @Table(name = "db_user")
+@Audited
 public class User {
     @Id
     @GeneratedValue
@@ -19,6 +21,8 @@ public class User {
     private String first;
 
     private String last;
+
+    private int age;
 
     public long getId() {
         return id;
@@ -50,6 +54,14 @@ public class User {
 
     public void setLast(String last) {
         this.last = last;
+    }
+
+    public int getAge() {
+        return age;
+    }
+
+    public void setAge(int age) {
+        this.age = age;
     }
 
     @Override
